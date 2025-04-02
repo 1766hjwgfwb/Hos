@@ -1,2 +1,5 @@
 docs
 .vscode
+src/*.bin
+src/*.img
+src/bochsrc
