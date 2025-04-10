@@ -3,3 +3,4 @@ docs
 src/*.bin
 src/*.img
 src/bochsrc
+src/*.ini

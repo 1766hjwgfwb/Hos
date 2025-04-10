@@ -34,7 +34,7 @@ xchg bx, bx ;　断点
 
 
 ; 比较地址魔数
-cmp word [0x1000], 0xaa55
+cmp word [0x1000], 0x55aa
 jnz error ; 地址魔数不匹配
 
 
