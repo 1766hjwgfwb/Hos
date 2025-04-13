@@ -3,6 +3,16 @@
 dw 0x55aa ; 写入魔数
 
 
+; 初始化栈, 消除实模式下栈的影响
+mov ax, 0
+mov ss, ax
+mov ds, ax
+mov es, ax
+mov fs, ax
+mov gs, ax
+mov sp, 0x7c00 ; 栈顶指针
+
+
 ; print string
 mov si, loading
 call print
@@ -48,7 +58,7 @@ detect_memory:
     xchg bx, bx
 
     ; 在实模式下无法修改
-    mov byte [0xb8000], 'P'
+    ; mov byte [0xb8000], 'P'
 
     jmp prepare_protected_mode
 
@@ -117,11 +127,90 @@ protect_mode:
 
     mov esp, 0x10000 ; 设置栈顶
 
-    mov byte [0xb8000], 'P'
+    mov edi, 0x10000 ; 内存地址
+    mov ecx, 10 ; 起始扇区
+    mov bl, 200 ; 扇区数量
 
-    mov byte [0x200000], 'P'
+    call read_disk ; 读取硬盘
 
+    jmp dword code_selector:0x10000 ; 跳转到内核入口
+
+    ud2 ; 未定义指令
+
+    
 jmp $ ; 阻塞
+
+
+read_disk:
+
+    ; 设置读写扇区的数量
+    mov dx, 0x1f2;
+    mov al, bl
+    out dx, al
+
+    inc dx ; 0x1f3
+    mov al, cl ; 起始扇区的前8位
+    out dx, al
+
+    inc dx ; 0x1f4
+    shr ecx, 8
+    mov al, cl ; 起始扇区的中8位
+    out dx, al
+
+    inc dx ; 0x1f5
+    shr ecx, 8
+    mov al, cl ; 起始扇区的高8位
+    out dx, al
+
+    inc dx ; 0x1f6
+    shr ecx, 8
+    and cl, 0b1111 ;将高四位置0
+
+    mov al, 0b1110_0000
+    or al, cl
+    out dx, al ; 主盘 - LBA模式
+
+    inc dx ; 0x1f7
+    mov al, 0x20 ; 读硬盘
+    out dx, al
+
+    xor ecx, ecx ; 清空ecx
+    mov cl, bl ; 扇区数量
+
+    .read:
+        push cx ; 保存 cx
+        call .waits ; 等待数据准备完毕
+        call .reads ; 读取一个扇区
+        pop cx ; 恢复 cx
+        loop .read
+
+    ret
+
+    .waits:
+        mov dx, 0x1f7
+        .check:
+            in al, dx
+            jmp $+2; nop 跳转到下一行
+            jmp $+2; 延迟
+            jmp $+2
+            and al, 0b1000_1000
+            cmp al, 0b0000_1000
+            jnz .check ; 等待准备完毕
+        ret
+
+    .reads:
+        mov dx, 0x1f0 ; 选择主盘
+        mov cx, 256 ; 一个扇区 256字(512字节)
+        .readw:
+            in ax, dx
+            jmp $+2; nop 跳转到下一行
+            jmp $+2; 延迟
+            jmp $+2
+            mov [edi], ax ; 读入内存
+            add edi, 2 ; 指向下一个字
+            loop .readw
+        ret
+
 
 ; GDT 8字节偏移量 index 0 NULLptr 1 code_selector 2 data_selector
 code_selector equ (1 << 3)
@@ -167,7 +256,7 @@ gdt_data:
     db 0b_1_00_1_0_0_1_0
     db 0b1_1_0_0_0000 | (memory_limit >> 16) & 0xf
     db (memory_base >> 24) & 0xff; 基地址 24 ~ 31 位
-
+; 记录地址 gdt_data
 gdt_end:
 
 ards_count:

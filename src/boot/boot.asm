@@ -11,6 +11,8 @@ mov ax, 0
 mov ds, ax
 mov es, ax
 mov ss, ax
+mov fs, ax
+mov gs, ax
 mov sp, 0x7c00
 
 
@@ -30,7 +32,7 @@ mov bl, 4 ; 扇区数量
 
 call read_disk ; 读取硬盘
 
-xchg bx, bx ;　断点
+; xchg bx, bx ;　断点
 
 
 ; 比较地址魔数
