@@ -1,6 +1,5 @@
 docs
 .vscode
-src/*.bin
-src/*.img
+build
 src/bochsrc
 src/*.ini
