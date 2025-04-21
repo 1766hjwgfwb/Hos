@@ -23,17 +23,19 @@ $(BUILD)/boot/%.bin: $(SRC)/boot/%.asm
 	nasm -f bin $< -o $@
 
 # elf32 kernel
-$(BUILD)/kernel/%.o: $(SRC)/kernel/%.asm
+$(BUILD)/%.o: $(SRC)/%.asm
 	$(shell mkdir -p $(dir $@))
 	nasm -f elf32 $(DEBUG) $< -o $@
 
-$(BUILD)/kernel/%.o: $(SRC)/kernel/%.c
+$(BUILD)/%.o: $(SRC)/%.c
 	$(shell mkdir -p $(dir $@))
 	gcc $(CFLAGS) $(DEBUG) $(INCLUDES) -c $< -o $@
 
 # compile kernel
 $(BUILD)/kernel/kernel.bin: $(BUILD)/kernel/start.o \
-	$(BUILD)/kernel/main.o
+	$(BUILD)/kernel/main.o \
+	$(BUILD)/kernel/io.o \
+	$(BUILD)/lib/string.o
 
 	$(shell mkdir -p $(dir $@))
 	ld -m elf_i386 -static $^ -o $@ -Ttext $(ENTRYPOINT)
@@ -82,4 +84,30 @@ clean:
 # run bochs
 .PHONY: bochs
 bochs: $(BUILD)/master.img
-	bochs -q
+	bochs -q -f ./bochs/bochsrc
+
+
+# run qemu
+.PHONY: qemu
+qemu: $(BUILD)/master.img
+	qemu-system-i386 \
+	-m 32M \
+	-boot c \
+	-hda $<
+
+# run qemu with gdb
+.PHONY: qemu-gdb
+qemu-gdb: $(BUILD)/master.img
+	qemu-system-i386 \
+	-s -S \
+	-m 32M \
+	-boot c \
+	-hda $< \
+
+
+# run vmware
+$(BUILD)/master.vmdk: $(BUILD)/master.img
+	qemu-img convert -O vmdk $< $@
+
+.PHONY: vmdk
+vmdk: $(BUILD)/master.vmdk
