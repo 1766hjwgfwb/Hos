@@ -1,6 +1,6 @@
-#include <hos/console.h>
+#include <common/console.h>
 #include <hos/io.h>
-#include <hos/string.h>
+#include <lib/string.h>
 
 
 static u32 screen; // 当前显示器开始的内存位置

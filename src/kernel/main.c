@@ -1,17 +1,23 @@
-#include <hos/hos.h>
+#include <common/hos.h>
 #include <hos/types.h>
 #include <hos/io.h>
-#include <hos/console.h>
-#include <hos/string.h>
+#include <common/console.h>
+#include <lib/string.h>
+#include <common/printk.h>
 
 
-char message[] = "Hello, Hos!\t";
+char message[] = "Hello, Hos!";
 char buf[1024];
+
+
+
 
 void kernel_init() {
     console_init();
-    
-    console_write(message, sizeof(message) - 1);
+
+
+    printk("%x", 0x12345678);
+
 
     
     return;

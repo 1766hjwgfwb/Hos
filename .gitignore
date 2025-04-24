@@ -4,3 +4,4 @@ build
 src/bochsrc
 src/*.ini
 src/tests
+*.py

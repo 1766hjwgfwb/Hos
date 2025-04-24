@@ -1,4 +1,4 @@
-#include <hos/string.h>
+#include <lib/string.h>
 
 
 int strcmp(const char *str1, const char *str2) {
@@ -120,10 +120,11 @@ void *memcpy(void *dest, const void *src, size_t n) {
 size_t strlen(const char *str) {
     const char *ptr = str;
 
-    while (*str++) {
+    while (*str) {          // ! 原实现严重BUG !!!
+        str++;
     }
     
-    return ptr - str;
+    return str - ptr;
 }
 
 
