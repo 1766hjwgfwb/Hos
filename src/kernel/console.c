@@ -212,7 +212,7 @@ void console_write(char *buf, u32 count) {
 
     while (count--) {
         ch = *buf++;
-        char *ptr = (char *)pos;
+        // char *ptr = (char *)pos;
 
         switch (ch) {
             case ASCII_NUL: // null 0x0
@@ -257,12 +257,17 @@ void console_write(char *buf, u32 count) {
                     x = 0;
                 }
 
-                *ptr++ = ch;    // 写入字符
-                *ptr++ = attr;  // 写入属性
+                // *ptr++ = ch;    // 写入字符
+                // *ptr++ = attr;  // 写入属性
 
+                *(char *)pos = ch;    // 写入字符
+                pos++;
+                *(char *)pos = attr;  // 写入属性
+                pos++;
+        
                 x++;
                 // pos += 2; // 2 bytes per char
-                pos += BYTES_PER_CHAR; // 2 bytes per char
+                // pos += BYTES_PER_CHAR; // 2 bytes per char
                 update_position();
 
                 break;

@@ -9,6 +9,7 @@ CFLAGS:= -m32 # 32-bit mode
 CFLAGS+= -fno-builtin # disable built-in functions
 CFLAGS+= -nostdinc # disable standard includes
 CFLAGS+= -fno-pic # disable position-independent code
+CFLAGS+= -fno-pie # disable position-independent executable
 CFLAGS+= -nostdlib # disable standard libraries
 CFLAGS+= -fno-stack-protector # disable stack protection
 CFLAGS:= $(strip ${CFLAGS})
@@ -37,6 +38,8 @@ $(BUILD)/kernel/kernel.bin: $(BUILD)/kernel/start.o \
 	$(BUILD)/kernel/io.o \
 	$(BUILD)/kernel/console.o \
 	$(BUILD)/kernel/printk.o \
+	$(BUILD)/kernel/assert.o \
+	$(BUILD)/kernel/debug.o \
 	$(BUILD)/lib/string.o \
 	$(BUILD)/lib/vsprintk.o
 
@@ -74,7 +77,7 @@ usb: $(BUILD)/boot/boot.bin /dev/sdd
 	sudo dd if=usb.bin of=/dev/sdd bs=512 count=1 conv=notrunc
 	rm usb.bin
 
-
+.PHONY:test
 test: $(BUILD)/master.img
 
 
