@@ -33,13 +33,17 @@ $(BUILD)/%.o: $(SRC)/%.c
 	gcc $(CFLAGS) $(DEBUG) $(INCLUDES) -c $< -o $@
 
 # compile kernel
-$(BUILD)/kernel/kernel.bin: $(BUILD)/kernel/start.o \
-	$(BUILD)/kernel/main.o \
-	$(BUILD)/kernel/io.o \
-	$(BUILD)/kernel/console.o \
-	$(BUILD)/kernel/printk.o \
-	$(BUILD)/kernel/assert.o \
-	$(BUILD)/kernel/debug.o \
+$(BUILD)/kernel/kernel.bin:		\
+	$(BUILD)/kernel/core/start.o \
+	$(BUILD)/kernel/core/main.o \
+	$(BUILD)/kernel/interrupts/io.o \
+	$(BUILD)/kernel/utils/console.o \
+	$(BUILD)/kernel/utils/printk.o \
+	$(BUILD)/kernel/utils/assert.o \
+	$(BUILD)/kernel/utils/debug.o \
+	$(BUILD)/kernel/utils/global.o \
+	$(BUILD)/kernel/scheduling/schedule.o \
+	$(BUILD)/kernel/scheduling/task.o \
 	$(BUILD)/lib/string.o \
 	$(BUILD)/lib/vsprintk.o
 

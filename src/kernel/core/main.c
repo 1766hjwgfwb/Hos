@@ -1,11 +1,14 @@
 #include <common/hos.h>
 #include <hos/types.h>
 #include <hos/io.h>
+#include <hos/global.h>
 #include <common/console.h>
 #include <lib/string.h>
 #include <common/printk.h>
 #include <common/assert.h>
 #include <hos/debug.h>
+#include <lib/stdarg.h>
+#include <hos/task.h>
 
 
 char message[] = "Hello, Hos!";
@@ -23,16 +26,12 @@ void print_message() {
 }
 
 
-
 void kernel_init() {
     console_init();
 
+    gdt_init();
 
-    // print_message();
-    // assert(3 > 5);  
-    BMB;
-
-    DEBUGK("debug hos!\n");
+    task_init();
 
     return;
 }
