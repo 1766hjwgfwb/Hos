@@ -10,7 +10,7 @@ pointer_t gdt_ptr;          // 全局描述符表指针
 
 // init
 void gdt_init() {
-    // DEBUGK("init_gdt!!!\n");
+    DEBUGK("init_gdt!!!\n");
 
     asm volatile("sgdt gdt_ptr");
 

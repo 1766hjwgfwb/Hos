@@ -22,6 +22,6 @@ task_switch:
     pop edi
     pop esi
     pop ebx
-    pop ebp
-
+    pop ebp     ;esp += 4     // 此时esp指向栈顶（函数地址）
+    
     ret

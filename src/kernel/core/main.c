@@ -9,6 +9,7 @@
 #include <hos/debug.h>
 #include <lib/stdarg.h>
 #include <hos/task.h>
+#include <hos/interrupt.h>
 
 
 char message[] = "Hello, Hos!";
@@ -31,7 +32,9 @@ void kernel_init() {
 
     gdt_init();
 
-    task_init();
+    // print_message();
+    // task_init();
+    interrupt_init();
 
     return;
 }
