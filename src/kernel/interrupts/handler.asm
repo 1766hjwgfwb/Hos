@@ -16,16 +16,21 @@ interrupt_handler_%1:   ; 生成函数模板 0x00 - 0x1f
 %endmacro
 
 interrupt_entry:
-    mov eax, [esp]
+    mov eax, [esp]  ;eax的值用来搜寻 中断处理函数的地址, handler_table[eax*4] = exception + eax*4
 
     ; 调用中断处理函数
-    call [handler_table + eax * 4]
+    call [handler_table + eax * 4]  
     ; 对应 push %1
     add esp, 8
     iret
 
 ; 定义中断处理函数
-INTERRUPT_HANDLER 0x00, 0 ;divide by zero
+INTERRUPT_HANDLER 0x00, 0 ;divide by zero 
+; INTERRUPT_HANDLER 0x00, 0  = 
+;    interrupt_handler_0x00:
+;    push 0x20222202
+;    push 0x00
+;    jmp interrupt_entry  
 INTERRUPT_HANDLER 0x01, 0 ;debug exception
 INTERRUPT_HANDLER 0x02, 0 ;non-maskable interrupt
 INTERRUPT_HANDLER 0x03, 0 ;breakpoint exception
@@ -65,6 +70,25 @@ INTERRUPT_HANDLER 0x1c, 0 ;reserved
 INTERRUPT_HANDLER 0x1d, 0 ;reserved
 INTERRUPT_HANDLER 0x1e, 0 ;reserved
 INTERRUPT_HANDLER 0x1f, 0 ;reserved
+
+; 外部中断 0x20 - 0x2f IRQ0 - IRQ15 
+INTERRUPT_HANDLER 0x20, 0 ;clock时钟中断
+INTERRUPT_HANDLER 0x21, 0 
+INTERRUPT_HANDLER 0x22, 0 ; 从PIC
+INTERRUPT_HANDLER 0x23, 0 
+INTERRUPT_HANDLER 0x24, 0 
+INTERRUPT_HANDLER 0x25, 0 
+INTERRUPT_HANDLER 0x26, 0 
+INTERRUPT_HANDLER 0x27, 0
+INTERRUPT_HANDLER 0x28, 0 
+INTERRUPT_HANDLER 0x29, 0 
+INTERRUPT_HANDLER 0x2a, 0 
+INTERRUPT_HANDLER 0x2b, 0 
+INTERRUPT_HANDLER 0x2c, 0 
+INTERRUPT_HANDLER 0x2d, 0 
+INTERRUPT_HANDLER 0x2e, 0 
+INTERRUPT_HANDLER 0x2f, 0
+
 
 ;下面的数组记录了每个中断入口函数的指针
 section .data
@@ -108,3 +132,21 @@ handler_entry_table:
     dd interrupt_handler_0x1d
     dd interrupt_handler_0x1e
     dd interrupt_handler_0x1f
+
+    ; 0x20-0x2f
+    dd interrupt_handler_0x20
+    dd interrupt_handler_0x21
+    dd interrupt_handler_0x22
+    dd interrupt_handler_0x23
+    dd interrupt_handler_0x24
+    dd interrupt_handler_0x25
+    dd interrupt_handler_0x26
+    dd interrupt_handler_0x27
+    dd interrupt_handler_0x28
+    dd interrupt_handler_0x29
+    dd interrupt_handler_0x2a
+    dd interrupt_handler_0x2b
+    dd interrupt_handler_0x2c
+    dd interrupt_handler_0x2d
+    dd interrupt_handler_0x2e
+    dd interrupt_handler_0x2f

@@ -10,6 +10,7 @@
 #include <lib/stdarg.h>
 #include <hos/task.h>
 #include <hos/interrupt.h>
+#include <lib/stdlib.h>
 
 
 char message[] = "Hello, Hos!";
@@ -35,6 +36,16 @@ void kernel_init() {
     // print_message();
     // task_init();
     interrupt_init();
+
+    asm volatile(
+        "sti\n"
+    );
+
+    u32 counter = 3;
+    while (counter--) {
+        DEBUGK("looping in kernel_init: %d\n", counter);
+        delay(100000000);
+    }
 
     return;
 }

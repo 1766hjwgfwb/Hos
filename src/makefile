@@ -47,7 +47,8 @@ $(BUILD)/kernel/kernel.bin:		\
 	$(BUILD)/kernel/interrupts/handler.o \
 	$(BUILD)/kernel/interrupts/interrupt.o \
 	$(BUILD)/lib/string.o \
-	$(BUILD)/lib/vsprintk.o
+	$(BUILD)/lib/vsprintk.o	\
+	$(BUILD)/lib/stdlib.o
 
 	$(shell mkdir -p $(dir $@))
 	ld -m elf_i386 -static $^ -o $@ -Ttext $(ENTRYPOINT)

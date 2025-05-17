@@ -25,8 +25,8 @@ typedef void *handler_t;    // handler func
 void interrupt_init();
 void exception_handler(int vector);
 
-
-
+void send_eoi(int vector);
+void default_handler(int vector);
 
 
 
