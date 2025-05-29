@@ -9,17 +9,38 @@ section .text
 %macro INTERRUPT_HANDLER 2  ; 定义INTERRUPT_HANDLER宏， 两个参数
 interrupt_handler_%1:   ; 生成函数模板 0x00 - 0x1f
 %ifn %2
-    push 0x20222202
+    push 0x20222202     ; 有错误码的时候 cpu会自动压入
 %endif
     push %1
     jmp interrupt_entry
 %endmacro
 
 interrupt_entry:
-    mov eax, [esp]  ;eax的值用来搜寻 中断处理函数的地址, handler_table[eax*4] = exception + eax*4
+    ; 保存上文寄存器信息
+    push ds
+    push es
+    push fs
+    push gs
+    pusha
+
+    mov eax, [esp + 12 * 4]  ; 取出中断号
+
+    ;压入参数
+    push eax
 
     ; 调用中断处理函数
     call [handler_table + eax * 4]  
+
+    ; 对应 push eax, 调用结束恢复栈
+    add esp, 4
+
+    ;恢复下文寄存器信息
+    popa
+    pop gs
+    pop fs
+    pop es
+    pop ds
+
     ; 对应 push %1
     add esp, 8
     iret

@@ -1,9 +1,11 @@
 #include <hos/interrupt.h>
 #include <hos/global.h>
 #include <hos/debug.h>
-#include <common/printk.h>
+#include <hos/task.h>
 #include <hos/io.h>
+#include <common/printk.h>
 #include <lib/stdlib.h>
+#include <common/assert.h>
 
 
 #define ENTRY_SIZE 0x30
@@ -48,6 +50,8 @@ interrupt_entry:
 // * func
 static void idt_init();
 static void pic_init();
+static void default_handler(int vector);
+static void exception_handler(int vector, u32 edi, u32 esi, u32 ebp, u32 esp, u32 ebx, u32 edx, u32 ecx, u32 eax, u32 gs, u32 fs, u32 es, u32 ds, u32 vector0, u32 error, u32 eip, u32 cs, u32 eflags);
 
 // error messages
 static char *messages[] = {
@@ -78,12 +82,39 @@ static char *messages[] = {
 
 // 通知中断控制器，结束当前中断
 void send_eoi(int vector) {
-    if (vector >= 0x20 && vector < 0x28)
-        outb(PIC_M_CTRL, PIC_EOI);  // 主 PIC
-    
     if (vector >= 0x28 && vector < 0x30) {
         outb(PIC_M_CTRL, PIC_EOI);  // 从 PIC
         outb(PIC_S_CTRL, PIC_EOI);
+    }
+
+    if (vector >= 0x20 && vector < 0x28)
+        outb(PIC_M_CTRL, PIC_EOI);  // 主 PIC
+    
+}
+
+
+void set_interrupt_handler(u32 irq, handler_t handler) {
+    assert(irq >= 0 && irq < 16);
+    // 对应中断号的处理函数
+    handler_table[IRQ_MASTER_NR + irq] = handler;
+}
+
+
+void set_interrupt_mask(u32 irq, bool enable) {
+    assert(irq >= 0 && irq < 16);
+    u16 port;
+
+    if (irq < 8) {
+        port = PIC_M_DATA;
+    } else {
+        port = PIC_S_DATA;
+        irq -= 8;
+    }
+
+    if (enable) {
+        outb(port, inb(port) & ~(1 << irq));
+    } else {
+        outb(port, inb(port) | (1 << irq));
     }
 }
 
@@ -91,20 +122,28 @@ void send_eoi(int vector) {
 u32 counter = 0;
 
 
-void default_handler(int vector) {
+static void default_handler(int vector) {
     send_eoi(vector);
-    LOGK("[%d] default interrupt called %d...\n", vector, counter++);
+    // schedule();
+    DEBUGK("[%dx] default interrupt called %d...\n", vector, counter);
 }
 
 
-void exception_handler(int vector) {
+static void exception_handler(int vector, u32 edi, u32 esi, u32 ebp, u32 esp, u32 ebx, u32 edx, u32 ecx, u32 eax, u32 gs, u32 fs, u32 es, u32 ds, u32 vector0, u32 error, u32 eip, u32 cs, u32 eflags) {
     char *msg = NULL;
     if (vector < 22)
         msg = messages[vector];
     else
         msg = messages[15];
 
-    printk("Exception: [0x%02X] %s \n", vector, messages[vector]);
+    printk("\nException: %s\n", messages[vector]);
+
+    printk("    VECTOR   : 0x%02X\n", vector);
+    printk("    ERROR    : 0x%08X\n", error);
+    printk("    EFLAGS   : 0x%08X\n", eflags);
+    printk("    CS       : 0x%02X\n", cs);
+    printk("    EIP      : 0x%08X\n", eip);
+    printk("    ESP      : 0x%08X\n", esp);
 
     // while(1);
     hang();
@@ -157,7 +196,7 @@ static void pic_init() {
     outb(PIC_S_DATA, 2);          // ICW3: 设置从片连接到主片的 IR2 引脚
     outb(PIC_S_DATA, 0b00000001); // ICW4: 8086模式, 正常EOI
 
-    outb(PIC_M_DATA, 0b11111110); // 关闭所有中断
+    outb(PIC_M_DATA, 0b11111111); // 关闭所有中断
     outb(PIC_S_DATA, 0b11111111); // 关闭所有中断
 }
 

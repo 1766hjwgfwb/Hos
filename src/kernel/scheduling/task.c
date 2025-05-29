@@ -1,5 +1,6 @@
 #include <hos/task.h>
 #include <hos/debug.h>
+#include <lib/stdlib.h>
 #include <common/printk.h>
 
 
@@ -29,18 +30,22 @@ void schedule() {
 }
 
 
-u32 thread_a() {
+u32 _ofp thread_a() {
+    asm volatile("sti\n");
+    
     while (true) {
         printk("A");
-        schedule();
+        // schedule();
     }
 }
 
 
-u32 thread_b() {
+u32 _ofp thread_b() {
+    asm volatile("sti\n");
+    
     while (true) {
         printk("B");
-        schedule();
+        // schedule();
     }
 }
 
@@ -66,5 +71,4 @@ void task_init() {
     task_create(a, thread_a);
     task_create(b, thread_b);
     schedule();
-    
 }

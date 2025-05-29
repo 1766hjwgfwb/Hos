@@ -22,6 +22,7 @@ typedef struct {    // stack frame of a task
 
 
 void task_init();
+void schedule();
 
 
 

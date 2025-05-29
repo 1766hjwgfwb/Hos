@@ -2,276 +2,203 @@
 #include <hos/io.h>
 #include <lib/string.h>
 
+#define CRT_ADDR_REG 0x3D4   // CRT控制器索引寄存器
+#define CRT_DATA_REG 0x3D5   // CRT控制器数据寄存器
 
-static u32 screen; // 当前显示器开始的内存位置
+// CRT控制器寄存器索引
+#define CRT_START_ADDR_H 0xC // 显存起始地址高位
+#define CRT_START_ADDR_L 0xD // 显存起始地址低位
+#define CRT_CURSOR_H 0xE     // 光标位置高位
+#define CRT_CURSOR_L 0xF     // 光标位置低位
 
-static u32 pos; // 记录当前光标的内存位置
+// 显存相关常量
+#define MEM_BASE 0xB8000     // 文本模式显存基地址
+#define MEM_SIZE 0x4000      // 显存总大小 (16KB)
+#define MEM_END (MEM_BASE + MEM_SIZE)
+#define WIDTH 80             // 屏幕每行字符数
+#define HEIGHT 25            // 屏幕总行数
+#define ROW_SIZE (WIDTH * 2) // 每行字节数（字符+属性）
+#define SCR_SIZE (ROW_SIZE * HEIGHT) // 整屏字节数
 
-static u8 x, y; // 当前光标的坐标
+// 控制字符定义
+#define ASCII_NUL 0x00
+#define ASCII_ENQ 0x05
+#define ASCII_BEL 0x07       // 蜂鸣符 \a
+#define ASCII_BS 0x08        // 退格符 \b
+#define ASCII_HT 0x09        // 水平制表符 \t
+#define ASCII_LF 0x0A        // 换行符 \n
+#define ASCII_VT 0x0B        // 垂直制表符 \v
+#define ASCII_FF 0x0C        // 换页符 \f
+#define ASCII_CR 0x0D        // 回车符 \r
+#define ASCII_DEL 0x7F       // 删除符
 
-static u8 attr = 7;        // 字符样式
-static u16 erase = 0x0720; // 空格
+static u32 screen;           // 当前显存起始位置
+static u32 pos;              // 当前光标内存位置
+static u32 x, y;             // 光标坐标（列，行）
+static u8 attr = 0x07;       // 字符属性（灰底黑字）
+static u16 erase = 0x0720;   // 擦除用空格（属性+字符）
 
-// * Information functions
-static void get_screen();
-static void set_screen();
-static void get_cursor();
-static void set_cursor();
-
-// * command functions
-static void command_bs();
-static void command_cr();
-static void command_lf();
-static void command_ht();
-static void scroll_up();
-static void update_position();
-
-
-// * read char from screen memory
+/* 获取当前显存起始位置 */
 static void get_screen() {
-    outb(CRT_ADDR_REG, CRT_START_ADDR_H);   // set high 8bits
-    screen = inb(CRT_DATA_REG) << 8; // get high 8bits
-    outb(CRT_ADDR_REG, CRT_START_ADDR_L);   // set low 8bits
-    screen |= inb(CRT_DATA_REG); // get low 8bits
-
-    screen <<=1; // screen * 2, 1 char = 2 bytes
-    screen += MEM_BASE; // screen + MEM_BASE
+    outb(CRT_ADDR_REG, CRT_START_ADDR_H);
+    screen = inb(CRT_DATA_REG) << 8;  // 读取高字节
+    outb(CRT_ADDR_REG, CRT_START_ADDR_L);
+    screen |= inb(CRT_DATA_REG);       // 组合低字节
+    
+    // 计算实际显存地址：CRT返回的是字符单元索引，需要转换为字节地址
+    screen = MEM_BASE + (screen << 1); // 每个字符占2字节
 }
 
-
+/* 设置显存起始位置 */
 static void set_screen() {
-    outb(CRT_ADDR_REG, CRT_START_ADDR_H);   // set high 8bits
-    // * (>> 9) = (>> 1 >> 8)
-    // screen - mem_base = 字节偏移量
-    // (screen - mem_base) / 2 = 字符偏移量
-    outb(CRT_DATA_REG, ((screen - MEM_BASE) >> 9) & 0xff); // set high 8bits
-    outb(CRT_ADDR_REG, CRT_START_ADDR_L);   // set low 8bits
-    outb(CRT_DATA_REG, ((screen - MEM_BASE) >> 1) & 0xff); // set low 8bits
-
-    // todoing
-    // * if (x != 0), eax return != 0
+    u32 offset = (screen - MEM_BASE) >> 1; // 转换为字符单元
+    
+    outb(CRT_ADDR_REG, CRT_START_ADDR_H);
+    outb(CRT_DATA_REG, (offset >> 8) & 0xFF);  // 写入高字节
+    outb(CRT_ADDR_REG, CRT_START_ADDR_L);
+    outb(CRT_DATA_REG, offset & 0xFF);         // 写入低字节
 }
 
-
+/* 获取光标位置 */
 static void get_cursor() {
     outb(CRT_ADDR_REG, CRT_CURSOR_H);
-    pos = inb(CRT_DATA_REG) << 8; // get high 8bits
+    pos = inb(CRT_DATA_REG) << 8;     // 高字节
     outb(CRT_ADDR_REG, CRT_CURSOR_L);
-    pos |= inb(CRT_DATA_REG); // get low 8bits
-
-    get_screen();
-
-    pos <<= 1; // pos * 2, 1 char = 2 bytes
-    pos += MEM_BASE; // pos + mem_base
-
-    u32 offset = (pos - screen) >> 1; // 计算偏移量
-
-    // * math is belike: offset = y * width + x, so we can / y, % x
-    x = offset % WIDTH;
-    y = offset / WIDTH;
+    pos |= inb(CRT_DATA_REG);         // 低字节
+    
+    // 转换为字节地址并计算坐标
+    pos = MEM_BASE + (pos << 1);
+    get_screen();  // 确保screen值有效
+    
+    u32 delta = (pos - screen) >> 1;  // 转换为字符偏移
+    x = delta % WIDTH;                // 列坐标
+    y = delta / WIDTH;                // 行坐标
 }
 
-
+/* 设置光标位置 */
 static void set_cursor() {
-    u32 offset = y * WIDTH + x; // 计算偏移量
-
-    u32 screen_offset = (screen - MEM_BASE) >> 1; // 计算屏幕偏移量
-
-    u32 cursor_pos = screen_offset + offset; // 计算光标位置
-
-    outb(CRT_ADDR_REG, CRT_CURSOR_H);   // set high 8bits
-    outb(CRT_DATA_REG, (cursor_pos >> 8) & 0xff); // set high 8bits
-    outb(CRT_ADDR_REG, CRT_CURSOR_L);   // set low 8bits
-    outb(CRT_DATA_REG, cursor_pos & 0xff); // set low 8bits
+    u32 offset = (pos - MEM_BASE) >> 1; // 转换为字符单元
+    
+    outb(CRT_ADDR_REG, CRT_CURSOR_H);
+    outb(CRT_DATA_REG, (offset >> 8) & 0xFF);
+    outb(CRT_ADDR_REG, CRT_CURSOR_L);
+    outb(CRT_DATA_REG, offset & 0xFF);
 }
 
-
-// synchronize x,y and pos
-static void update_position() {
-    pos = screen + (y * WIDTH + x) * BYTES_PER_CHAR;    // 计算光标位置
-
-    // 保持 pos 在显示器内
-    if (pos < MEM_BASE || pos >= MEM_BASE + (HEIGHT * WIDTH * BYTES_PER_CHAR)) {
-        x = y = 0;
-        pos = screen;
-    }
-}
-
-
-void console_init() {
-    console_clear();
-}
-
-
+/* 清屏并重置光标 */
 void console_clear() {
     screen = MEM_BASE;
     pos = MEM_BASE;
-    x = 0, y = 0;
+    x = y = 0;
+    set_cursor();
+    set_screen();
 
-    u16 *ptr = (u16 *) screen;
+    // 用空格填充整个显存
+    for (u16 *ptr = (u16 *)MEM_BASE; ptr < (u16 *)MEM_END; ptr++) {
+        *ptr = erase;
+    }
+}
 
-    u32 _screen_Size = WIDTH * HEIGHT;
-
-    for (u32 i = 0; i < _screen_Size; i++) {
-        *ptr++ = erase; // 空格
+/* 向上滚动一行 */
+static void scroll_up() {
+    // 当显存即将溢出时，复位到基地址
+    if (screen + SCR_SIZE + ROW_SIZE >= MEM_END) {
+        memcpy((void *)MEM_BASE, (void *)screen, SCR_SIZE);
+        pos -= (screen - MEM_BASE);  // 保持相对位置
+        screen = MEM_BASE;
     }
 
-    set_cursor();
+    // 在底部添加新行（用空格填充）
+    u16 *ptr = (u16 *)(screen + SCR_SIZE);
+    for (size_t i = 0; i < WIDTH; i++) {
+        *ptr++ = erase;
+    }
+
+    // 调整显存起始位置和光标
+    screen += ROW_SIZE;
+    pos += ROW_SIZE;
     set_screen();
 }
 
+/* 处理换行 */
+static void command_lf() {
+    if (y + 1 < HEIGHT) {  // 简单下移光标
+        y++;
+        pos += ROW_SIZE;
+    } else {                // 需要滚屏
+        scroll_up();
+    }
+}
 
+/* 处理回车 */
+static void command_cr() {
+    pos = screen + y * ROW_SIZE;  // 回到行首
+    x = 0;
+}
+
+/* 处理退格 */
 static void command_bs() {
-    // delete char
-
     if (x > 0) {
         x--;
-        pos -= BYTES_PER_CHAR; // 2 bytes per char
-        *(u16 *)pos = erase; // 强转为u16，空格
+        pos -= 2;
+        *(u16 *)pos = erase;  // 用空格覆盖
     }
 }
 
-
+/* 处理删除 */
 static void command_del() {
-    *(u16 *)pos = erase; // 强转为u16，空格
+    *(u16 *)pos = erase;  // 删除当前字符
 }
 
-
-static void command_cr() {
-    x = 0;
-    // pos = screen + (y * WIDTH * 2); // 回到行首
-    update_position();
-}
-
-
-static void command_lf() {
-    if (y < HEIGHT - 1) {
-        y++;
-        x = 0;
-        // pos = screen + (y * WIDTH * 2); // 换行
-        update_position();
-        return;
-    }
-
-    // scroll up
-    scroll_up();
-}
-
-
-void command_ht() {
-    // * tab
-    x = (x + 8) & ~7; // 8 = 8 - 1, 8的整数倍
-
-    if (x >= WIDTH) {
-        x = 0;
-        y++;
-    }
-
-    update_position();
-}
-
-
-void scroll_up() {
-    // 将屏幕内容上移一行（从第二行开始复制到第一行）
-    u16 *dest = (u16 *)screen;
-    u16 *src = (u16 *)(screen + ROW_SIZE); // ROW_SIZE = WIDTH * 2
-    /*  for (u32 i = 0; i < (HEIGHT - 1) * WIDTH; i++) {
-        *dest++ = *src++;
-    }*/
-    memcpy(dest, src, (HEIGHT - 1) * WIDTH * BYTES_PER_CHAR); // 直接复制
-
-    // 清空最后一行
-    u16 *last_line = (u16 *)(screen + (HEIGHT - 1) * ROW_SIZE);
-    for (u32 i = 0; i < WIDTH; i++) {
-        *last_line++ = erase; // 填充空格
-    }
-
-    // 保持 screen 不变，通过硬件寄存器调整显示起始位置
-    // 计算新的屏幕偏移量（上移一行）
-    u32 screen_offset = ((screen - MEM_BASE) >> 1) + WIDTH; // 偏移量增加一行
-    screen = MEM_BASE; // 始终保持 screen 为 MEM_BASE
-
-    // 更新 pos，保持在最后一行
-    y = HEIGHT - 1;
-    x = 0;
-    // pos = screen + (y * WIDTH * 2);
-    update_position();
-
-    // 更新硬件寄存器
-    outb(CRT_ADDR_REG, CRT_START_ADDR_H);
-    outb(CRT_DATA_REG, (screen_offset >> 8) & 0xff); // 高 8 位
-    outb(CRT_ADDR_REG, CRT_START_ADDR_L);
-    outb(CRT_DATA_REG, screen_offset & 0xff); // 低 8 位
-
-    set_cursor();
-}
-
-
+/* 控制台输出核心函数 */
 void console_write(char *buf, u32 count) {
-    char ch;
-
     while (count--) {
-        ch = *buf++;
-        // char *ptr = (char *)pos;
-
-        switch (ch) {
-            case ASCII_NUL: // null 0x0
-                break;
-            case ASCII_ENQ: // enquiry 0x5
-                break;
-            case ASCII_BEL: // bell 0x7
-                break;
-            case ASCII_BS: // backspace 0x8
-                command_bs();
-                break;
-            case ASCII_HT: // horizontal tab 0x9
-                command_ht();
-                break;
-            case ASCII_LF: // line feed 0xa
-                command_lf();
-                break;
-            case ASCII_VT: // vertical tab 0xb
-                command_lf();
-                break;
-            case ASCII_FF: // form feed 0xc
-                console_clear();
-                break;
-            case ASCII_CR: // carriage return 0xd
-                command_cr();
-                break;
-            case ASCII_DEL: // delete 0x7f
-                command_del();
-                break;
-
-            default:
-                if (x >= WIDTH) {
-                    x = 0;
-                    y++;
-                    // pos = screen + (y * WIDTH * 2); // 修正：直接计算新行的位置
-                }
-
-                if (y >= HEIGHT) {
-                    scroll_up();
-                    y = HEIGHT - 1;
-                    // pos = screen + (y * WIDTH * 2);
-                    x = 0;
-                }
-
-                // *ptr++ = ch;    // 写入字符
-                // *ptr++ = attr;  // 写入属性
-
-                *(char *)pos = ch;    // 写入字符
-                pos++;
-                *(char *)pos = attr;  // 写入属性
-                pos++;
+        char ch = *buf++;
         
-                x++;
-                // pos += 2; // 2 bytes per char
-                // pos += BYTES_PER_CHAR; // 2 bytes per char
-                update_position();
-
-                break;
+        switch (ch) {
+        case ASCII_NUL:           // 空字符
+            break;
+        case ASCII_BEL:           // 蜂鸣符（暂未实现）
+            break;
+        case ASCII_BS:            // 退格
+            command_bs();
+            break;
+        case ASCII_HT:            // 制表符（暂未实现）
+            break;
+        case ASCII_LF:            // 换行
+            command_lf();
+            command_cr();         // 通常换行伴随回车
+            break;
+        case ASCII_VT:            // 垂直制表符
+            break;
+        case ASCII_FF:            // 换页（按换行处理）
+            command_lf();
+            break;
+        case ASCII_CR:            // 回车
+            command_cr();
+            break;
+        case ASCII_DEL:           // 删除
+            command_del();
+            break;
+        default:                  // 可打印字符
+            // 处理自动换行
+            if (x >= WIDTH) {
+                command_lf();
+                command_cr();
+            }
+            
+            // 写入字符及属性
+            *((u8 *)pos) = ch;
+            *((u8 *)pos + 1) = attr;
+            pos += 2;
+            x++;
+            break;
         }
     }
-    set_cursor();
+    set_cursor();  // 更新光标位置
+}
+
+/* 控制台初始化 */
+void console_init() {
+    console_clear();
 }

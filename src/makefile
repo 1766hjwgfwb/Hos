@@ -46,6 +46,7 @@ $(BUILD)/kernel/kernel.bin:		\
 	$(BUILD)/kernel/scheduling/task.o \
 	$(BUILD)/kernel/interrupts/handler.o \
 	$(BUILD)/kernel/interrupts/interrupt.o \
+	$(BUILD)/kernel/interrupts/clock.o \
 	$(BUILD)/lib/string.o \
 	$(BUILD)/lib/vsprintk.o	\
 	$(BUILD)/lib/stdlib.o
