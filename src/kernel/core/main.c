@@ -3,13 +3,13 @@ extern void gdt_init();
 extern void interrupt_init();
 extern void clock_init();
 extern void hang();
-
+extern int printk(const char *fmt, ...);
 
 char message[] = "Hello, Hos!";
 char buf[1024];
 
-
-void print_message() {
+void print_message()
+{
     printk("\n");
     printk("\t\t\t  _   _   ____   _____ \n");
     printk("\t\t\t | | | | / ___| | ____|\n");
@@ -19,11 +19,12 @@ void print_message() {
     printk("\n");
 }
 
-
-void kernel_init() {
+void kernel_init()
+{
     console_init();
 
     gdt_init();
+
 
     interrupt_init();
     // task_init();
